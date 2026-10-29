@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useSyncExternalStore, type KeyboardEvent } from "react";
-import { focusRingClass } from "./styles";
 
 const subscribeToHash = (onChange: () => void) => {
   window.addEventListener("hashchange", onChange);
@@ -53,7 +52,14 @@ export function Tabs<T extends string>({ tabs, selected, onSelect, label }: Tabs
   }
 
   return (
-    <div role="tablist" aria-label={label} className="flex gap-1 overflow-x-auto border-b border-border">
+    // The divider is an inset shadow rather than a border, so the active tab's underline can sit on it without
+    // overflowing; overflow-y is hidden so Windows never shows a vertical scrollbar, and the sideways one for
+    // narrow screens is hidden too, as in the Shopify admin.
+    <div
+      role="tablist"
+      aria-label={label}
+      className="flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       {tabs.map((tab, index) => {
         const active = tab.id === selected;
         return (
@@ -67,7 +73,7 @@ export function Tabs<T extends string>({ tabs, selected, onSelect, label }: Tabs
             tabIndex={active ? 0 : -1}
             onClick={() => onSelect(tab.id)}
             onKeyDown={(event) => handleKeyDown(event, index)}
-            className={`-mb-px inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm transition-colors ${focusRingClass} ${
+            className={`inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
               active
                 ? "border-foreground font-semibold text-foreground"
                 : "border-transparent text-muted hover:border-border-strong hover:text-foreground"
