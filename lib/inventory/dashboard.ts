@@ -13,7 +13,7 @@ import {
   type DemandSource,
   type RuleErrors,
 } from "./rules";
-import type { InventoryLevel, ReorderRule, RuleOverrides } from "./types";
+import type { InventoryLevel, Money, ReorderRule, RuleOverrides } from "./types";
 
 export type StockStatus = "out_of_stock" | "low_stock" | "in_stock";
 export type StatusFilter = "all" | "needs_reorder" | StockStatus;
@@ -37,6 +37,8 @@ export interface DashboardItem {
   /** Null when the rule or the stock is invalid: no recommendation is made from bad input. */
   reorder: ReorderResult | null;
   status: StockStatus;
+  /** Days until available stock runs out at the current demand; 0 when already out, null when it isn't selling. */
+  daysOfCover: number | null;
 }
 
 export interface BuildOptions extends ReorderOptions {
@@ -61,6 +63,10 @@ export interface InventorySummary {
   outOfStock: number;
   needsReorder: number;
   recommendedUnits: number;
+  /** Cost of the recommended orders, for items with a cost per item. Null if none have one. */
+  recommendedValue: Money | null;
+  /** Items needing a reorder whose cost per item isn't set, so they're missing from the value. */
+  reorderItemsWithoutCost: number;
   customRules: number;
   invalidRules: number;
 }
@@ -72,12 +78,20 @@ export function getStockStatus(available: number, reorderPoint: number | null): 
   return "in_stock";
 }
 
+/** Available ÷ average daily demand. On-hand only: incoming stock has no arrival date to count from. */
+export function daysOfCoverFor(available: number, averageDailyDemand: number): number | null {
+  if (available <= 0) return 0;
+  return Number.isFinite(averageDailyDemand) && averageDailyDemand > 0 ? available / averageDailyDemand : null;
+}
+
 const STATUS_ORDER: Record<StockStatus, number> = { out_of_stock: 0, low_stock: 1, in_stock: 2 };
 
 function compareUrgency(a: DashboardItem, b: DashboardItem): number {
   return (
     STATUS_ORDER[a.status] - STATUS_ORDER[b.status] ||
     Number(needsReorder(b)) - Number(needsReorder(a)) ||
+    // Sooner to run out comes first; items that aren't selling come last.
+    (a.daysOfCover ?? Infinity) - (b.daysOfCover ?? Infinity) ||
     a.level.productTitle.localeCompare(b.level.productTitle) ||
     a.level.variantTitle.localeCompare(b.level.variantTitle) ||
     a.level.locationName.localeCompare(b.level.locationName)
@@ -108,6 +122,7 @@ export function buildDashboardItems(
         demandSource: demandSourceFor(override, salesDemand),
         stockError,
         reorder,
+        daysOfCover: stockError ? null : daysOfCoverFor(level.available, rule.averageDailyDemand),
         status: getStockStatus(level.available, reorder?.reorderPoint ?? null),
       };
     })
@@ -127,6 +142,19 @@ export function isCoveredByIncoming(item: DashboardItem): boolean {
   );
 }
 
+/** Recommended quantity × cost per item, when the item needs a reorder and has a cost. */
+export function orderValue(item: DashboardItem): Money | null {
+  const cost = item.level.unitCost;
+  if (!cost || !item.reorder?.shouldReorder) return null;
+  return { amount: item.reorder.recommendedQuantity * cost.amount, currencyCode: cost.currencyCode };
+}
+
+/** Costs all come from one shop and share its currency; anything in another currency is left out. */
+export function addMoney(total: Money | null, value: Money): Money {
+  if (!total) return { ...value };
+  return value.currencyCode === total.currencyCode ? { ...total, amount: total.amount + value.amount } : total;
+}
+
 export function summarizeInventory(items: readonly DashboardItem[]): InventorySummary {
   const variants = new Set<string>();
   const locations = new Set<string>();
@@ -138,6 +166,8 @@ export function summarizeInventory(items: readonly DashboardItem[]): InventorySu
     outOfStock: 0,
     needsReorder: 0,
     recommendedUnits: 0,
+    recommendedValue: null,
+    reorderItemsWithoutCost: 0,
     customRules: 0,
     invalidRules: 0,
   };
@@ -152,6 +182,9 @@ export function summarizeInventory(items: readonly DashboardItem[]): InventorySu
     if (needsReorder(item)) {
       summary.needsReorder += 1;
       summary.recommendedUnits += item.reorder?.recommendedQuantity ?? 0;
+      const value = orderValue(item);
+      if (value) summary.recommendedValue = addMoney(summary.recommendedValue, value);
+      else summary.reorderItemsWithoutCost += 1;
     }
   }
 

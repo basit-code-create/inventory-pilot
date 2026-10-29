@@ -11,7 +11,8 @@ import {
   type InventoryFilters,
   type StatusFilter,
 } from "@/lib/inventory/dashboard";
-import { demandByLevel } from "@/lib/inventory/demand";
+import { demandFromSales } from "@/lib/inventory/demand";
+import { idleStock } from "@/lib/inventory/insights";
 import { DEMO_RULE_OVERRIDES, loadDemoInventory, type DemoScenario } from "@/lib/inventory/demo-data";
 import { formatTime, formatUnits, plural } from "@/lib/inventory/format";
 import {
@@ -38,8 +39,10 @@ import { DemoBanner } from "./demo-banner";
 import { InventoryFiltersBar } from "./inventory-filters";
 import { InventoryTable } from "./inventory-table";
 import { HistoryPanel } from "./history-panel";
+import { IdleStockPanel } from "./idle-stock";
 import { ItemRuleDialog } from "./item-rule-dialog";
 import { LiveBanner, type SalesState } from "./live-banner";
+import { PurchaseList } from "./purchase-list";
 import { DemoBadge, LiveBadge } from "./status-badge";
 import { SummaryCards } from "./summary-cards";
 
@@ -123,7 +126,7 @@ export function InventoryDashboard() {
 
   const snapshot = load.status === "ready" ? load.snapshot : null;
   const salesDemand = useMemo(
-    () => (mode === "live" && snapshot && sales.status === "ready" ? demandByLevel(snapshot.levels, sales.history) : null),
+    () => (mode === "live" && snapshot && sales.status === "ready" ? demandFromSales(snapshot.levels, sales.history) : null),
     [mode, snapshot, sales],
   );
   const items = useMemo(
@@ -132,6 +135,7 @@ export function InventoryDashboard() {
     [snapshot, defaults, overrides, reorderOptions, salesDemand],
   );
   const summary = useMemo(() => summarizeInventory(items), [items]);
+  const idle = useMemo(() => idleStock(items, salesDemand), [items, salesDemand]);
   const locations = useMemo(() => listLocations(items), [items]);
   const visibleItems = useMemo(() => filterItems(items, filters), [items, filters]);
   const statusCounts = useMemo(
@@ -280,6 +284,8 @@ export function InventoryDashboard() {
         <>
           <SummaryCards summary={summary} activeStatus={filters.status} onSelectStatus={selectStatus} />
 
+          <PurchaseList items={items} />
+
           <DefaultRuleCard
             rule={defaults}
             options={reorderOptions}
@@ -321,6 +327,10 @@ export function InventoryDashboard() {
             </p>
           </section>
         </>
+      )}
+
+      {hasData && load.status === "ready" && sales.status === "ready" && (
+        <IdleStockPanel idle={idle} windowDays={sales.history.windowDays} />
       )}
 
       {mode === "live" && load.status === "ready" && <HistoryPanel refreshKey={historyKey} />}

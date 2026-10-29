@@ -3,7 +3,7 @@ import "server-only";
 import type { DashboardItem } from "../inventory/dashboard";
 import { needsReorder } from "../inventory/dashboard";
 import type { HistoryEntry } from "../inventory/history";
-import { DEFAULT_REORDER_OPTIONS, type ReorderOptions } from "../inventory/reorder";
+import { DEFAULT_REORDER_OPTIONS, parseReorderOptions, type ReorderOptions } from "../inventory/reorder";
 import { DEFAULT_REORDER_RULE } from "../inventory/rules";
 import type { ReorderRule, ReorderRuleOverride, RuleOverrides } from "../inventory/types";
 import { getCollections, shopKey, type LevelStateDocument } from "./collections";
@@ -19,7 +19,8 @@ export async function loadShopSettings(shop: string): Promise<ShopSettings> {
   const [doc, rules] = await Promise.all([settings.findOne({ _id: shop }), itemRules.find({ shop }).toArray()]);
   return {
     defaults: doc?.defaults ?? DEFAULT_REORDER_RULE,
-    options: doc?.options ?? DEFAULT_REORDER_OPTIONS,
+    // Settings saved before a newer option existed get that option's default.
+    options: parseReorderOptions(doc?.options) ?? DEFAULT_REORDER_OPTIONS,
     overrides: Object.fromEntries(rules.map((rule) => [rule.levelId, rule.override])),
   };
 }

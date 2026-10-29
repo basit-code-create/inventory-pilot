@@ -1,5 +1,5 @@
-import { isCoveredByIncoming, type DashboardItem } from "@/lib/inventory/dashboard";
-import { formatDemand, formatUnits, formatVariantTitle } from "@/lib/inventory/format";
+import { isCoveredByIncoming, orderValue, type DashboardItem } from "@/lib/inventory/dashboard";
+import { formatDemand, formatMoney, formatRunsOut, formatUnits, formatVariantTitle } from "@/lib/inventory/format";
 import type { DataSource } from "@/lib/inventory/types";
 import { Button } from "@/components/ui/button";
 import { EditIcon } from "@/components/ui/icons";
@@ -67,6 +67,18 @@ function ReorderPoint({ item }: { item: DashboardItem }) {
   );
 }
 
+/** The status badge, with when stock runs out at the current demand. */
+function StockStatus({ item }: { item: DashboardItem }) {
+  return (
+    <div className="flex flex-col items-start gap-0.5 lg:items-start">
+      <StatusBadge status={item.status} />
+      {item.daysOfCover !== null && item.daysOfCover > 0 && (
+        <span className="text-[11px] whitespace-nowrap text-muted">{formatRunsOut(item.daysOfCover)}</span>
+      )}
+    </div>
+  );
+}
+
 function Recommendation({ item, onEdit }: { item: DashboardItem; onEdit: () => void }) {
   const { reorder } = item;
 
@@ -89,6 +101,7 @@ function Recommendation({ item, onEdit }: { item: DashboardItem; onEdit: () => v
     );
   }
   if (reorder.shouldReorder) {
+    const value = orderValue(item);
     return (
       <div className="flex flex-col items-start lg:items-end">
         <span className="rounded-md bg-info-bg px-2 py-0.5 text-sm font-semibold whitespace-nowrap text-info-fg tabular-nums">
@@ -96,6 +109,7 @@ function Recommendation({ item, onEdit }: { item: DashboardItem; onEdit: () => v
         </span>
         <span className="mt-0.5 text-[11px] whitespace-nowrap text-muted">
           to reach {formatUnits(item.rule.targetStock)}
+          {value && ` · ≈ ${formatMoney(value)}`}
         </span>
       </div>
     );
@@ -160,7 +174,7 @@ export function InventoryTable({ items, source, onEditRule }: InventoryTableProp
                     <ReorderPoint item={item} />
                   </td>
                   <td className="px-3 py-3">
-                    <StatusBadge status={item.status} />
+                    <StockStatus item={item} />
                   </td>
                   <td className="px-3 py-3 text-right">
                     <Recommendation item={item} onEdit={edit} />
@@ -200,7 +214,7 @@ export function InventoryTable({ items, source, onEditRule }: InventoryTableProp
                   </p>
                   <p className="mt-0.5 text-xs text-muted">{level.locationName}</p>
                 </div>
-                <StatusBadge status={item.status} />
+                <StockStatus item={item} />
               </div>
 
               <dl className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-surface-muted p-2.5 text-center">

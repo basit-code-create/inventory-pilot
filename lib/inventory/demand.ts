@@ -1,6 +1,19 @@
 import type { InventoryLevel, SalesHistory } from "./types";
 
 /**
+ * Sales-based demand per stock level, or null when the store had no orders at all in the window.
+ * A brand-new store would otherwise get a demand of 0 everywhere, and the default rule is a
+ * better guess than that. A store with orders keeps 0 for variants that didn't sell.
+ */
+export function demandFromSales(
+  levels: readonly InventoryLevel[],
+  sales: SalesHistory | null,
+): Record<string, number> | null {
+  if (!sales || sales.ordersCounted === 0) return null;
+  return demandByLevel(levels, sales);
+}
+
+/**
  * Average daily demand for each stock level (`${variantId}@${locationId}`) over the sales window.
  *
  * Units fulfilled from a location count for that location. Units with no location (orders not

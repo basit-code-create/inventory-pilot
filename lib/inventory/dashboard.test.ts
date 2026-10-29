@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDashboardItems,
   countByStatus,
+  daysOfCoverFor,
   DEFAULT_FILTERS,
   filterItems,
   getStockStatus,
@@ -10,6 +11,7 @@ import {
   summarizeInventory,
 } from "./dashboard";
 import { DEMO_LEVELS, DEMO_RULE_OVERRIDES } from "./demo-data";
+import { DEFAULT_REORDER_OPTIONS } from "./reorder";
 import { DEFAULT_REORDER_RULE } from "./rules";
 
 const items = buildDashboardItems(DEMO_LEVELS, DEFAULT_REORDER_RULE, DEMO_RULE_OVERRIDES);
@@ -61,6 +63,8 @@ describe("summarizeInventory", () => {
       outOfStock: 4,
       needsReorder: 10,
       recommendedUnits: 483,
+      recommendedValue: { amount: 4399.5, currencyCode: "USD" },
+      reorderItemsWithoutCost: 0,
       customRules: 17,
       invalidRules: 0,
     });
@@ -70,7 +74,8 @@ describe("summarizeInventory", () => {
 describe("filterItems", () => {
   it("matches every search term across product, variant, SKU and location", () => {
     const results = filterItems(items, { ...DEFAULT_FILTERS, query: "tee black downtown" });
-    expect(results.map((item) => item.level.sku)).toEqual(["TEE-BLK-M", "TEE-BLK-S"]);
+    // Both need a reorder; Small runs out first (9 ÷ 0.8 = 11.3 days vs 14 ÷ 1.2 = 11.7 days).
+    expect(results.map((item) => item.level.sku)).toEqual(["TEE-BLK-S", "TEE-BLK-M"]);
   });
 
   it("searches SKUs case-insensitively", () => {
@@ -113,12 +118,14 @@ describe("demand and incoming settings", () => {
 
   it("prefers a manual demand, then sales demand, then the default rule", () => {
     const manual = buildDashboardItems([level], DEFAULT_REORDER_RULE, DEMO_RULE_OVERRIDES, {
+      ...DEFAULT_REORDER_OPTIONS,
       incomingStock: "include",
       salesDemand: { [level.id]: 9 },
     })[0];
     expect(manual).toMatchObject({ demandSource: "manual", rule: { averageDailyDemand: 2.5 } });
 
     const fromSales = buildDashboardItems([plain], DEFAULT_REORDER_RULE, {}, {
+      ...DEFAULT_REORDER_OPTIONS,
       incomingStock: "include",
       salesDemand: { plain: 4 },
     })[0];
@@ -131,8 +138,8 @@ describe("demand and incoming settings", () => {
   it("changes the recommendation when incoming stock is ignored", () => {
     // The default reorder point is 17: 10 available + 30 incoming covers it, 10 alone doesn't.
     const low = { ...plain, available: 10 };
-    const counted = buildDashboardItems([low], DEFAULT_REORDER_RULE, {}, { incomingStock: "include" })[0];
-    const ignored = buildDashboardItems([low], DEFAULT_REORDER_RULE, {}, { incomingStock: "exclude" })[0];
+    const counted = buildDashboardItems([low], DEFAULT_REORDER_RULE, {}, { ...DEFAULT_REORDER_OPTIONS, incomingStock: "include" })[0];
+    const ignored = buildDashboardItems([low], DEFAULT_REORDER_RULE, {}, { ...DEFAULT_REORDER_OPTIONS, incomingStock: "exclude" })[0];
     expect(counted.reorder?.shouldReorder).toBe(false);
     expect(ignored.reorder).toMatchObject({ shouldReorder: true, recommendedQuantity: 50 });
   });
@@ -141,5 +148,17 @@ describe("demand and incoming settings", () => {
     const [item] = buildDashboardItems([{ ...plain, available: 2.5 }], DEFAULT_REORDER_RULE, {});
     expect(item.reorder).toBeNull();
     expect(item.stockError).not.toBeNull();
+  });
+});
+
+describe("daysOfCoverFor", () => {
+  it("is available stock divided by daily demand", () => {
+    expect(daysOfCoverFor(30, 2.5)).toBe(12);
+  });
+
+  it("is 0 when already out and null when nothing sells", () => {
+    expect(daysOfCoverFor(0, 3)).toBe(0);
+    expect(daysOfCoverFor(-2, 3)).toBe(0);
+    expect(daysOfCoverFor(40, 0)).toBeNull();
   });
 });

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { calculateReorder, calculateReorderPoint, validateStock } from "./reorder";
+import {
+  calculateReorder,
+  calculateReorderPoint,
+  DEFAULT_REORDER_OPTIONS,
+  parseReorderOptions,
+  validateStock,
+} from "./reorder";
 import type { ReorderRule } from "./types";
 
 const rule: ReorderRule = {
@@ -84,7 +90,7 @@ describe("incoming stock setting", () => {
   });
 
   it("can plan from available stock alone", () => {
-    expect(calculateReorder(stock, rule, { incomingStock: "exclude" })).toMatchObject({
+    expect(calculateReorder(stock, rule, { ...DEFAULT_REORDER_OPTIONS, incomingStock: "exclude" })).toMatchObject({
       inventoryPosition: 10,
       shouldReorder: true,
       recommendedQuantity: 80,
@@ -102,5 +108,22 @@ describe("validateStock", () => {
     expect(validateStock({ available: 1.5, incoming: 0 })).not.toBeNull();
     expect(validateStock({ available: NaN, incoming: 0 })).not.toBeNull();
     expect(validateStock({ available: 4, incoming: -1 })).not.toBeNull();
+  });
+});
+
+describe("parseReorderOptions", () => {
+  it("accepts the supported sales windows and fills in missing settings", () => {
+    expect(parseReorderOptions({ incomingStock: "exclude", demandWindowDays: 7 })).toEqual({
+      incomingStock: "exclude",
+      demandWindowDays: 7,
+    });
+    // Settings saved before the sales window existed.
+    expect(parseReorderOptions({ incomingStock: "include" })).toEqual(DEFAULT_REORDER_OPTIONS);
+  });
+
+  it("rejects unsupported values", () => {
+    expect(parseReorderOptions({ incomingStock: "include", demandWindowDays: 90 })).toBeNull();
+    expect(parseReorderOptions({ incomingStock: "maybe" })).toBeNull();
+    expect(parseReorderOptions(null)).toBeNull();
   });
 });

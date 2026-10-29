@@ -1,5 +1,6 @@
 import type {
   InventoryLevel,
+  Money,
   InventorySnapshot,
   ReorderRuleOverride,
   RuleOverrides,
@@ -19,6 +20,8 @@ interface DemoLocation {
 interface DemoVariant {
   productId: string;
   productTitle: string;
+  vendor: string | null;
+  unitCost: Money | null;
   variantId: string;
   variantTitle: string;
   sku: string | null;
@@ -37,10 +40,13 @@ interface DemoStock {
 const WAREHOUSE: DemoLocation = { locationId: "demo-location-1", locationName: "Main Warehouse" };
 const DOWNTOWN: DemoLocation = { locationId: "demo-location-2", locationName: "Downtown Store" };
 
-function product(productNumber: number, productTitle: string) {
+/** Sample vendors and costs are in USD, so demo order values read as dollars. */
+function product(productNumber: number, productTitle: string, vendor: string | null, cost: number | null) {
   return (variantNumber: number, variantTitle: string, sku: string | null, tracked = true): DemoVariant => ({
     productId: `demo-product-${productNumber}`,
     productTitle,
+    vendor,
+    unitCost: cost === null ? null : { amount: cost, currencyCode: "USD" },
     variantId: `demo-variant-${variantNumber}`,
     variantTitle,
     sku,
@@ -49,15 +55,15 @@ function product(productNumber: number, productTitle: string) {
   });
 }
 
-const tee = product(1, "Classic Crew Tee");
-const hoodie = product(2, "Everyday Hoodie");
-const pourOver = product(3, "Ceramic Pour-Over Set");
-const bottle = product(4, "Insulated Bottle");
-const tote = product(5, "Canvas Tote");
-const beanie = product(6, "Merino Beanie");
-const coffee = product(7, "Single-Origin Coffee Beans 1 kg");
-const giftCard = product(8, "Gift Card");
-const stickers = product(9, "Sticker Pack");
+const tee = product(1, "Classic Crew Tee", "Northwind Apparel", 6.5);
+const hoodie = product(2, "Everyday Hoodie", "Northwind Apparel", 14);
+const pourOver = product(3, "Ceramic Pour-Over Set", "Harbor Goods", 18);
+const bottle = product(4, "Insulated Bottle", "Harbor Goods", 9);
+const tote = product(5, "Canvas Tote", "Harbor Goods", 4);
+const beanie = product(6, "Merino Beanie", "Northwind Apparel", 7);
+const coffee = product(7, "Single-Origin Coffee Beans 1 kg", "Highland Roasters", 11);
+const giftCard = product(8, "Gift Card", null, null);
+const stickers = product(9, "Sticker Pack", null, null);
 
 const TEE_BLACK_S = tee(101, "Small / Black", "TEE-BLK-S");
 const TEE_BLACK_M = tee(102, "Medium / Black", "TEE-BLK-M");

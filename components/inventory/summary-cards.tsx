@@ -1,5 +1,5 @@
 import type { InventorySummary, StatusFilter } from "@/lib/inventory/dashboard";
-import { formatUnits, plural } from "@/lib/inventory/format";
+import { formatMoney, formatUnits, plural } from "@/lib/inventory/format";
 import { cardClass, focusRingClass } from "@/components/ui/styles";
 
 interface SummaryCardsProps {
@@ -35,7 +35,9 @@ export function SummaryCards({ summary, activeStatus, onSelectStatus }: SummaryC
       status: "needs_reorder",
       label: "Needs reorder",
       value: summary.needsReorder,
-      detail: `${plural(summary.recommendedUnits, "unit")} recommended`,
+      detail: `${plural(summary.recommendedUnits, "unit")} recommended${
+        summary.recommendedValue ? ` · ≈ ${formatMoney(summary.recommendedValue)} at cost` : ""
+      }`,
       dot: "bg-info-fg",
     },
   ] satisfies { status: StatusFilter; label: string; value: number; detail: string; dot: string }[];

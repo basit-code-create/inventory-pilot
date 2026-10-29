@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { calculateReorderPoint, type ReorderOptions } from "@/lib/inventory/reorder";
+import {
+  calculateReorderPoint,
+  DEMAND_WINDOWS,
+  type DemandWindowDays,
+  type ReorderOptions,
+} from "@/lib/inventory/reorder";
 import {
   draftToDefaultRule,
   hasRuleErrors,
@@ -56,6 +61,7 @@ function DefaultRuleForm({
 }: Omit<DefaultRuleDialogProps, "open">) {
   const [draft, setDraft] = useState<RuleDraft>(() => ruleToDraft(rule));
   const [countIncoming, setCountIncoming] = useState(options.incomingStock === "include");
+  const [demandWindowDays, setDemandWindowDays] = useState<DemandWindowDays>(options.demandWindowDays);
 
   const candidate = draftToDefaultRule(draft);
   const errors = validateRule(candidate);
@@ -71,7 +77,7 @@ function DefaultRuleForm({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (valid) onSave(candidate, { incomingStock: countIncoming ? "include" : "exclude" });
+    if (valid) onSave(candidate, { incomingStock: countIncoming ? "include" : "exclude", demandWindowDays });
   }
 
   return (
@@ -123,6 +129,31 @@ function DefaultRuleForm({
             <span className="text-muted">Enter valid values to see the reorder point.</span>
           )}
         </p>
+
+        {persisted && (
+          <label className="flex flex-col gap-1.5 rounded-lg border border-border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              <span className="font-medium">Sales period for demand</span>
+              <span className="mt-0.5 block text-xs text-muted">
+                Shorter reacts faster to changes; longer is steadier. Shopify allows up to 60 days.
+              </span>
+            </span>
+            <select
+              value={demandWindowDays}
+              onChange={(event) => {
+                const days = DEMAND_WINDOWS.find((option) => String(option) === event.target.value);
+                if (days) setDemandWindowDays(days);
+              }}
+              className="rounded-lg border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-focus focus:outline-hidden focus:ring-2 focus:ring-focus/25"
+            >
+              {DEMAND_WINDOWS.map((days) => (
+                <option key={days} value={days}>
+                  Last {days} days
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <label className="flex items-start gap-3 rounded-lg border border-border px-4 py-3 text-sm">
           <input

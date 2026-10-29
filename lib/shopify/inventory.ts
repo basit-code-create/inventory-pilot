@@ -42,6 +42,10 @@ const LEVELS_QUERY = `#graphql
             id
             sku
             tracked
+            unitCost {
+              amount
+              currencyCode
+            }
             variants(first: 1) {
               nodes {
                 id
@@ -50,6 +54,7 @@ const LEVELS_QUERY = `#graphql
                   id
                   title
                   status
+                  vendor
                 }
               }
             }
@@ -80,10 +85,22 @@ export interface LevelNode {
     id: string;
     sku: string | null;
     tracked: boolean;
+    /** MoneyV2: amount is a decimal string. Null when no cost per item is set. */
+    unitCost: { amount: string; currencyCode: string } | null;
     variants: {
-      nodes: { id: string; title: string; product: { id: string; title: string; status: string } }[];
+      nodes: {
+        id: string;
+        title: string;
+        product: { id: string; title: string; status: string; vendor: string | null };
+      }[];
     };
   };
+}
+
+/** A cost of 0 usually means "not entered", so it counts as missing rather than free. */
+function parseUnitCost(cost: LevelNode["item"]["unitCost"]): InventoryLevel["unitCost"] {
+  const amount = Number(cost?.amount);
+  return cost && Number.isFinite(amount) && amount > 0 ? { amount, currencyCode: cost.currencyCode } : null;
 }
 
 interface LevelsData {
@@ -115,6 +132,8 @@ export function toInventoryLevel(node: LevelNode, location: ShopifyLocation): In
     id: `${variant.id}@${location.id}`,
     productId: variant.product.id,
     productTitle: variant.product.title,
+    vendor: variant.product.vendor?.trim() || null,
+    unitCost: parseUnitCost(node.item.unitCost),
     variantId: variant.id,
     variantTitle: variant.title,
     sku: node.item.sku?.trim() || null,

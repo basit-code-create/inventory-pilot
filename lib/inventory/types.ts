@@ -4,12 +4,21 @@
  */
 export type DataSource = "demo" | "live";
 
+export interface Money {
+  amount: number;
+  currencyCode: string;
+}
+
 /** One inventory item (a product variant) stocked at one location. */
 export interface InventoryLevel {
   /** Stable key for this variant at this location: `${variantId}@${locationId}`. */
   id: string;
   productId: string;
   productTitle: string;
+  /** The product's vendor in Shopify, used as its supplier. */
+  vendor: string | null;
+  /** Cost per item in the shop's currency, if the merchant entered one. */
+  unitCost: Money | null;
   variantId: string;
   variantTitle: string;
   sku: string | null;

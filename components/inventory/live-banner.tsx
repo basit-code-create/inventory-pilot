@@ -21,7 +21,10 @@ function demandNote(sales: SalesState): string {
     case "loading":
       return "Reading recent orders to work out demand…";
     case "ready":
-      return `Average daily demand comes from the last ${sales.history.windowDays} days of orders (${plural(sales.history.ordersCounted, "order")}), unless you set it yourself.`;
+      // Matches demandFromSales: with no orders at all, the rules are a better guess than 0.
+      return sales.history.ordersCounted === 0
+        ? `There were no orders in the last ${sales.history.windowDays} days, so average daily demand comes from your reorder rules.`
+        : `Average daily demand comes from the last ${sales.history.windowDays} days of orders (${plural(sales.history.ordersCounted, "order")}), unless you set it yourself.`;
     case "not_approved":
       return "Shopify hasn't approved access to orders yet, so average daily demand comes from your reorder rules.";
     case "error":

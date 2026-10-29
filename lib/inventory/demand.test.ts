@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { demandByLevel } from "./demand";
+import { demandByLevel, demandFromSales } from "./demand";
 import type { InventoryLevel, SalesHistory } from "./types";
 
 function level(variantId: string, locationId: string, tracked = true): InventoryLevel {
@@ -7,6 +7,8 @@ function level(variantId: string, locationId: string, tracked = true): Inventory
     id: `${variantId}@${locationId}`,
     productId: "p",
     productTitle: "Tee",
+    vendor: null,
+    unitCost: null,
     variantId,
     variantTitle: "M",
     sku: null,
@@ -55,5 +57,16 @@ describe("demandByLevel", () => {
 
   it("gives tracked variants with no sales a demand of 0 and skips untracked ones", () => {
     expect(demandByLevel([level("v2", "a"), level("v3", "a", false)], history({}))).toEqual({ "v2@a": 0 });
+  });
+});
+
+describe("demandFromSales", () => {
+  it("falls back to the rules when the store had no orders at all", () => {
+    expect(demandFromSales([level("v1", "a")], { ...history({}), ordersCounted: 0 })).toBeNull();
+    expect(demandFromSales([level("v1", "a")], null)).toBeNull();
+  });
+
+  it("keeps 0 for variants that didn't sell in a store that has orders", () => {
+    expect(demandFromSales([level("v1", "a")], history({}))).toEqual({ "v1@a": 0 });
   });
 });

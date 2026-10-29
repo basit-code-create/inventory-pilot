@@ -21,6 +21,10 @@ const LEVEL_QUERY = `#graphql
           id
           sku
           tracked
+          unitCost {
+            amount
+            currencyCode
+          }
           variants(first: 1) {
             nodes {
               id
@@ -29,6 +33,7 @@ const LEVEL_QUERY = `#graphql
                 id
                 title
                 status
+                vendor
               }
             }
           }

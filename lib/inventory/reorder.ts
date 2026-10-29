@@ -37,11 +37,16 @@ export function resolveReorderPoint(rule: ReorderRule): number {
  */
 export type IncomingStockMode = "include" | "exclude";
 
+/** How many days of orders sales-based demand averages over. read_orders reaches back 60 days. */
+export const DEMAND_WINDOWS = [7, 30, 60] as const;
+export type DemandWindowDays = (typeof DEMAND_WINDOWS)[number];
+
 export interface ReorderOptions {
   incomingStock: IncomingStockMode;
+  demandWindowDays: DemandWindowDays;
 }
 
-export const DEFAULT_REORDER_OPTIONS: ReorderOptions = { incomingStock: "include" };
+export const DEFAULT_REORDER_OPTIONS: ReorderOptions = { incomingStock: "include", demandWindowDays: 30 };
 
 /** Available may be negative (oversold); incoming can't be. Both are whole units. */
 export function validateStock(stock: StockPosition): string | null {
@@ -77,9 +82,15 @@ export function calculateReorder(
   };
 }
 
-/** Checks reorder options that arrived from outside (an API request). */
+/**
+ * Checks reorder options that arrived from outside (an API request, or a document saved before a
+ * setting existed). Missing settings take their defaults; invalid ones reject the whole input.
+ */
 export function parseReorderOptions(input: unknown): ReorderOptions | null {
   if (!input || typeof input !== "object") return null;
-  const { incomingStock } = input as Record<string, unknown>;
-  return incomingStock === "include" || incomingStock === "exclude" ? { incomingStock } : null;
+  const { incomingStock = DEFAULT_REORDER_OPTIONS.incomingStock, demandWindowDays = DEFAULT_REORDER_OPTIONS.demandWindowDays } =
+    input as Record<string, unknown>;
+  if (incomingStock !== "include" && incomingStock !== "exclude") return null;
+  const window = DEMAND_WINDOWS.find((days) => days === demandWindowDays);
+  return window ? { incomingStock, demandWindowDays: window } : null;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { QueryCost } from "./admin-graphql";
-import { fetchLiveInventory, type LevelNode } from "./inventory";
+import { fetchLiveInventory, toInventoryLevel, type LevelNode } from "./inventory";
 
 type Graphql = Parameters<typeof fetchLiveInventory>[0];
 
@@ -20,12 +20,13 @@ function levelNode(
       id: `gid://shopify/InventoryItem/${variant}`,
       sku,
       tracked,
+      unitCost: { amount: "6.50", currencyCode: "USD" },
       variants: {
         nodes: [
           {
             id: `gid://shopify/ProductVariant/${variant}`,
             title: `Variant ${variant}`,
-            product: { id: "gid://shopify/Product/9", title: "Tee", status },
+            product: { id: "gid://shopify/Product/9", title: "Tee", status, vendor: "Acme Supply" },
           },
         ],
       },
@@ -144,5 +145,25 @@ describe("fetchLiveInventory", () => {
     const graphql = fakeShopify([[WAREHOUSE]], { [WAREHOUSE.id]: [[levelNode(1)]] });
     await fetchLiveInventory(graphql, { sleep: noSleep });
     for (const [query] of graphql.mock.calls) expect(query.trimStart()).toMatch(/^#graphql\s+query /);
+  });
+});
+
+describe("toInventoryLevel", () => {
+  const location = { id: "gid://shopify/Location/1", name: "Warehouse" };
+
+  it("reads the vendor and cost per item", () => {
+    expect(toInventoryLevel(levelNode(1), location)).toMatchObject({
+      vendor: "Acme Supply",
+      unitCost: { amount: 6.5, currencyCode: "USD" },
+    });
+  });
+
+  it("treats a missing or zero cost as not set", () => {
+    const noCost = levelNode(1);
+    expect(toInventoryLevel({ ...noCost, item: { ...noCost.item, unitCost: null } }, location)?.unitCost).toBeNull();
+    expect(
+      toInventoryLevel({ ...noCost, item: { ...noCost.item, unitCost: { amount: "0.00", currencyCode: "USD" } } }, location)
+        ?.unitCost,
+    ).toBeNull();
   });
 });
