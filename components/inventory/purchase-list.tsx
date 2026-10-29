@@ -32,13 +32,13 @@ export function PurchaseList({ items }: { items: readonly DashboardItem[] }) {
       <div className="flex flex-col gap-3 px-4 pt-4 pb-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 id="purchase-list-heading" className="text-sm font-semibold">
-            Purchase list
+            By vendor
           </h2>
           <p className="mt-0.5 text-xs text-muted">
             Everything to reorder, grouped by the vendor set on each product in Shopify.
           </p>
         </div>
-        <Button onClick={() => downloadCsv(purchaseListCsv(groups), fileName)} className="self-start">
+        <Button variant="primary" onClick={() => downloadCsv(purchaseListCsv(groups), fileName)} className="self-start">
           Download CSV
         </Button>
       </div>

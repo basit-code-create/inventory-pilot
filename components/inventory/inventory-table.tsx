@@ -1,5 +1,5 @@
 import { isCoveredByIncoming, orderValue, type DashboardItem } from "@/lib/inventory/dashboard";
-import { formatDemand, formatMoney, formatRunsOut, formatUnits, formatVariantTitle } from "@/lib/inventory/format";
+import { formatDaysLeft, formatDemand, formatMoney, formatRunsOut, formatUnits, formatVariantTitle } from "@/lib/inventory/format";
 import type { DataSource } from "@/lib/inventory/types";
 import { Button } from "@/components/ui/button";
 import { EditIcon } from "@/components/ui/icons";
@@ -30,7 +30,7 @@ function Quantity({ value }: { value: number }) {
 
 function Sku({ sku }: { sku: string | null }) {
   return sku ? (
-    <span className="font-mono text-xs">{sku}</span>
+    <span className="font-mono text-xs whitespace-nowrap">{sku}</span>
   ) : (
     <span className="text-xs text-subtle">No SKU</span>
   );
@@ -73,7 +73,9 @@ function StockStatus({ item }: { item: DashboardItem }) {
     <div className="flex flex-col items-start gap-0.5 lg:items-start">
       <StatusBadge status={item.status} />
       {item.daysOfCover !== null && item.daysOfCover > 0 && (
-        <span className="text-[11px] whitespace-nowrap text-muted">{formatRunsOut(item.daysOfCover)}</span>
+        <span className="text-[11px] whitespace-nowrap text-muted" title={formatRunsOut(item.daysOfCover)}>
+          {formatDaysLeft(item.daysOfCover)}
+        </span>
       )}
     </div>
   );

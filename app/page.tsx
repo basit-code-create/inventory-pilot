@@ -1,5 +1,5 @@
-import { InventoryDashboard } from "@/components/inventory/inventory-dashboard";
+import { InventoryApp } from "@/components/inventory/inventory-app";
 
 export default function Home() {
-  return <InventoryDashboard />;
+  return <InventoryApp />;
 }

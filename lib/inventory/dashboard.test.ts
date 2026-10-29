@@ -162,3 +162,13 @@ describe("daysOfCoverFor", () => {
     expect(daysOfCoverFor(40, 0)).toBeNull();
   });
 });
+
+describe("run-out wording", () => {
+  it("is compact in tables and dated in full", async () => {
+    const { formatDaysLeft, formatRunsOut } = await import("./format");
+    expect(formatDaysLeft(12.7)).toBe("12 days left");
+    expect(formatDaysLeft(0.4)).toBe("Runs out today");
+    expect(formatDaysLeft(0)).toBe("Out now");
+    expect(formatRunsOut(1, new Date("2026-10-29T12:00:00Z"))).toMatch(/^Runs out in 1 day \(/);
+  });
+});

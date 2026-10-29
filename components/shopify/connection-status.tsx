@@ -1,78 +1,13 @@
 import type { ReactNode } from "react";
 import { REQUIRED_SCOPES } from "@/lib/shopify/scopes";
+import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
-import { AlertIcon, RefreshIcon } from "@/components/ui/icons";
+import { RefreshIcon } from "@/components/ui/icons";
 import type { ShopifyConnection } from "./use-shopify-connection";
 
-const BADGE_CLASS = "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium";
-
-export function ConnectionBadge({ connection }: { connection: ShopifyConnection }) {
-  switch (connection.status) {
-    case "connected":
-      return (
-        <span className={`${BADGE_CLASS} bg-success-bg text-success-fg`} title={connection.shopDomain}>
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
-          Connected to {connection.shopName}
-        </span>
-      );
-    case "error":
-      return (
-        <span className={`${BADGE_CLASS} bg-critical-bg text-critical-fg`}>
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
-          Shopify connection failed
-        </span>
-      );
-    case "checking":
-      return (
-        <span className={`${BADGE_CLASS} bg-surface-selected text-muted`} role="status">
-          <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-current" />
-          Checking Shopify connection…
-        </span>
-      );
-    case "not_embedded":
-      return (
-        <span className={`${BADGE_CLASS} bg-surface-selected text-muted`}>
-          <span aria-hidden="true" className="size-1.5 rounded-full border border-current" />
-          Shopify not connected
-        </span>
-      );
-  }
-}
-
-function Notice({ tone, title, children }: { tone: "critical" | "warning"; title: string; children: ReactNode }) {
-  const toneClass = tone === "critical" ? "bg-critical-bg/60 text-critical-fg" : "bg-warning-bg/50 text-warning-fg";
-  return (
-    <section
-      role={tone === "critical" ? "alert" : undefined}
-      className={`flex flex-col gap-3 rounded-xl p-4 sm:flex-row sm:items-start sm:justify-between ${toneClass}`}
-    >
-      <div className="flex gap-3">
-        <AlertIcon width={20} height={20} className="mt-px shrink-0" />
-        <div className="text-sm">
-          <h2 className="font-semibold">{title}</h2>
-          <div className="mt-0.5">{children}</div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/** Only shown when something about the connection needs attention. */
-export function ConnectionNotice({ connection, onRetry }: { connection: ShopifyConnection; onRetry: () => void }) {
-  if (connection.status === "error") {
-    return (
-      <Notice tone="critical" title="Couldn't connect to Shopify">
-        <p>{connection.message}</p>
-        <Button className="mt-3" onClick={onRetry}>
-          <RefreshIcon />
-          Try again
-        </Button>
-      </Notice>
-    );
-  }
-
-  if (connection.status !== "connected") return null;
-
+/** Things about a working connection that a merchant should fix. Empty when all is well. */
+export function connectionProblems(connection: ShopifyConnection): string[] {
+  if (connection.status !== "connected") return [];
   const { missingScopes, extraScopes, ordersAccess, apiVersion, webhooks } = connection;
   const problems: string[] = [];
 
@@ -86,7 +21,7 @@ export function ConnectionNotice({ connection, onRetry }: { connection: ShopifyC
       `The app has more access than it needs: ${extraScopes.join(", ")}. In the Dev Dashboard, set the app version's scopes to ${REQUIRED_SCOPES.join(",")} and release it. The extra access is removed the next time the app is opened.`,
     );
   }
-  // A missing read_orders scope also blocks orders; that message above already covers it.
+  // A missing read_orders scope also blocks orders; the message above already covers it.
   if (ordersAccess.status === "not_approved" && !missingScopes.includes("read_orders")) {
     problems.push(
       `Shopify hasn't approved access to orders, which are protected customer data. Request Level 1 protected customer data access for the app. Until then, demand can't be calculated from orders. Shopify says: “${ordersAccess.message}”`,
@@ -97,22 +32,82 @@ export function ConnectionNotice({ connection, onRetry }: { connection: ShopifyC
       `Shopify served API version ${apiVersion.served} instead of ${apiVersion.requested}. Set SHOPIFY_API_VERSION to a supported version.`,
     );
   }
-
   if (webhooks.status !== "ok") {
     problems.push(
       `Automatic stock-change updates are off: ${webhooks.message} Recommendations still update when you press Sync inventory.`,
     );
   }
+  return problems;
+}
 
-  if (problems.length === 0) return null;
+/** Shown on every tab: without a connection, nothing else works. */
+export function ConnectionErrorBanner({ connection, onRetry }: { connection: ShopifyConnection; onRetry: () => void }) {
+  if (connection.status !== "error") return null;
+  return (
+    <Banner
+      tone="critical"
+      title="Couldn't connect to Shopify"
+      actions={
+        <Button onClick={onRetry}>
+          <RefreshIcon />
+          Try again
+        </Button>
+      }
+    >
+      {connection.message}
+    </Banner>
+  );
+}
+
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-0.5 py-2.5 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-4">
+      <dt className="text-xs text-muted sm:text-sm">{label}</dt>
+      <dd className="text-sm">{children}</dd>
+    </div>
+  );
+}
+
+/** The full connection report, for the Settings tab. */
+export function ConnectionDetails({ connection }: { connection: ShopifyConnection }) {
+  if (connection.status === "not_embedded") {
+    return (
+      <p className="text-sm text-muted">
+        Not connected. Open InventoryPilot from your Shopify admin to connect a store.
+      </p>
+    );
+  }
+  if (connection.status !== "connected") {
+    return <p className="text-sm text-muted">{connection.status === "checking" ? "Checking the connection…" : connection.message}</p>;
+  }
+
+  const problems = connectionProblems(connection);
+  const ordersAccess = {
+    granted: "Approved",
+    not_approved: "Not approved",
+    unknown: "Couldn't check",
+  }[connection.ordersAccess.status];
 
   return (
-    <Notice tone="warning" title="The Shopify connection needs attention">
-      <ul className="list-disc space-y-1.5 pl-4">
-        {problems.map((problem) => (
-          <li key={problem}>{problem}</li>
-        ))}
-      </ul>
-    </Notice>
+    <div className="space-y-4">
+      <dl className="divide-y divide-border">
+        <DetailRow label="Store">
+          {connection.shopName} <span className="text-muted">({connection.shopDomain})</span>
+        </DetailRow>
+        <DetailRow label="Access">{connection.missingScopes.length === 0 ? "Read-only, all required scopes granted" : "Missing scopes"}</DetailRow>
+        <DetailRow label="Orders (for demand)">{ordersAccess}</DetailRow>
+        <DetailRow label="Stock-change updates">{connection.webhooks.status === "ok" ? "On" : "Off"}</DetailRow>
+        <DetailRow label="API version">{connection.apiVersion.served ?? connection.apiVersion.requested}</DetailRow>
+      </dl>
+      {problems.length > 0 && (
+        <Banner tone="warning" title="Needs attention">
+          <ul className="list-disc space-y-1.5 pl-4">
+            {problems.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        </Banner>
+      )}
+    </div>
   );
 }

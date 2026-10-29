@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { formatDemand, plural } from "@/lib/inventory/format";
 import {
   calculateReorderPoint,
   DEMAND_WINDOWS,
@@ -15,50 +16,35 @@ import {
   type RuleDraft,
   type RuleField,
 } from "@/lib/inventory/rules";
-import { formatDemand, plural } from "@/lib/inventory/format";
 import type { ReorderRule } from "@/lib/inventory/types";
 import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
 import { NumberField } from "@/components/ui/number-field";
+import { cardClass, inputClass } from "@/components/ui/styles";
 
-interface DefaultRuleDialogProps {
-  open: boolean;
+interface RuleSettingsFormProps {
   rule: ReorderRule;
   options: ReorderOptions;
   usesSalesDemand: boolean;
-  /** True when rules are saved to the database (live data); demo rules live only in the browser tab. */
+  /** Live data: rules are saved for the store, and demand can come from sales. */
   persisted: boolean;
   customRules: number;
   onSave: (rule: ReorderRule, options: ReorderOptions) => void;
-  onResetRules: () => void;
-  resetLabel: string;
-  onClose: () => void;
 }
 
-export function DefaultRuleDialog({ open, onClose, ...formProps }: DefaultRuleDialogProps) {
+function Section({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
-    <Modal
-      open={open}
-      title="Default reorder rule"
-      description="Used wherever an item doesn't set its own value."
-      onClose={onClose}
-    >
-      <DefaultRuleForm onClose={onClose} {...formProps} />
-    </Modal>
+    <section className={`${cardClass} grid gap-4 p-4 sm:p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:gap-8`}>
+      <div>
+        <h2 className="text-sm font-semibold">{title}</h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted">{description}</p>
+      </div>
+      <div className="space-y-4">{children}</div>
+    </section>
   );
 }
 
-function DefaultRuleForm({
-  rule,
-  options,
-  usesSalesDemand,
-  persisted,
-  customRules,
-  onSave,
-  onResetRules,
-  resetLabel,
-  onClose,
-}: Omit<DefaultRuleDialogProps, "open">) {
+/** The store-wide reorder settings, edited in place like a Shopify admin settings page. */
+export function RuleSettingsForm({ rule, options, usesSalesDemand, persisted, customRules, onSave }: RuleSettingsFormProps) {
   const [draft, setDraft] = useState<RuleDraft>(() => ruleToDraft(rule));
   const [countIncoming, setCountIncoming] = useState(options.incomingStock === "include");
   const [demandWindowDays, setDemandWindowDays] = useState<DemandWindowDays>(options.demandWindowDays);
@@ -67,31 +53,47 @@ function DefaultRuleForm({
   const errors = validateRule(candidate);
   const valid = !hasRuleErrors(errors);
   const canPreview = !errors.averageDailyDemand && !errors.leadTimeDays && !errors.safetyStock;
+  const nextOptions: ReorderOptions = { incomingStock: countIncoming ? "include" : "exclude", demandWindowDays };
+  const dirty =
+    JSON.stringify(ruleToDraft(rule)) !== JSON.stringify(draft) ||
+    nextOptions.incomingStock !== options.incomingStock ||
+    nextOptions.demandWindowDays !== options.demandWindowDays;
 
   const field = (name: RuleField) => ({
-    id: `default-${name}`,
+    id: `settings-${name}`,
     value: draft[name],
     onChange: (value: string) => setDraft((current) => ({ ...current, [name]: value })),
     error: errors[name],
   });
 
+  function discard() {
+    setDraft(ruleToDraft(rule));
+    setCountIncoming(options.incomingStock === "include");
+    setDemandWindowDays(options.demandWindowDays);
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (valid) onSave(candidate, { incomingStock: countIncoming ? "include" : "exclude", demandWindowDays });
+    if (valid && dirty) onSave(candidate, nextOptions);
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-col">
-      <div className="space-y-4 overflow-y-auto px-5 py-4">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+      <Section
+        title="Default reorder rule"
+        description={`Used for every item that doesn't set its own value.${
+          customRules > 0 ? ` ${plural(customRules, "item")} with a custom rule keep the values they set.` : ""
+        }`}
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <NumberField
             {...field("averageDailyDemand")}
-            label="Average daily demand"
+            label={usesSalesDemand ? "Demand without sales data" : "Average daily demand"}
             suffix="per day"
             allowDecimal
             hint={
               usesSalesDemand
-                ? "Used only for items without sales data; the rest use their recent sales."
+                ? "Only for items with no sales history; the rest use their recent sales."
                 : "Expected units sold per day."
             }
           />
@@ -114,37 +116,38 @@ function DefaultRuleForm({
             hint="A reorder brings stock back up to this level."
           />
         </div>
-
         <p aria-live="polite" className="rounded-lg bg-surface-muted px-4 py-3 text-sm">
           {canPreview ? (
             <>
-              Default reorder point:{" "}
-              <span className="font-semibold">{plural(calculateReorderPoint(candidate), "unit")}</span>{" "}
+              Reorder point: <span className="font-semibold">{plural(calculateReorderPoint(candidate), "unit")}</span>{" "}
               <span className="text-muted">
-                ({formatDemand(candidate.averageDailyDemand)} × {candidate.leadTimeDays} days +{" "}
-                {candidate.safetyStock}, rounded up)
+                ({formatDemand(candidate.averageDailyDemand)} × {candidate.leadTimeDays} days + {candidate.safetyStock},
+                rounded up)
               </span>
             </>
           ) : (
             <span className="text-muted">Enter valid values to see the reorder point.</span>
           )}
         </p>
+      </Section>
 
+      <Section
+        title="Demand and incoming stock"
+        description="How demand is measured and whether stock on its way counts toward the reorder point."
+      >
         {persisted && (
-          <label className="flex flex-col gap-1.5 rounded-lg border border-border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              <span className="font-medium">Sales period for demand</span>
-              <span className="mt-0.5 block text-xs text-muted">
-                Shorter reacts faster to changes; longer is steadier. Shopify allows up to 60 days.
-              </span>
-            </span>
+          <div>
+            <label htmlFor="settings-demand-window" className="block text-sm font-medium">
+              Sales period for demand
+            </label>
             <select
+              id="settings-demand-window"
               value={demandWindowDays}
               onChange={(event) => {
                 const days = DEMAND_WINDOWS.find((option) => String(option) === event.target.value);
                 if (days) setDemandWindowDays(days);
               }}
-              className="rounded-lg border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-focus focus:outline-hidden focus:ring-2 focus:ring-focus/25"
+              className={`${inputClass} mt-1.5 sm:max-w-xs`}
             >
               {DEMAND_WINDOWS.map((days) => (
                 <option key={days} value={days}>
@@ -152,10 +155,12 @@ function DefaultRuleForm({
                 </option>
               ))}
             </select>
-          </label>
+            <p className="mt-1.5 text-xs text-muted">
+              Shorter reacts faster to changes; longer is steadier. Shopify allows up to 60 days.
+            </p>
+          </div>
         )}
-
-        <label className="flex items-start gap-3 rounded-lg border border-border px-4 py-3 text-sm">
+        <label className="flex items-start gap-3 text-sm">
           <input
             type="checkbox"
             checked={countIncoming}
@@ -165,30 +170,25 @@ function DefaultRuleForm({
           <span>
             <span className="font-medium">Count incoming stock</span>
             <span className="mt-0.5 block text-xs text-muted">
-              Treat stock on its way (transfers and purchase orders) as already in stock. Turn this off if incoming
-              deliveries are often late or uncertain.
+              Treat stock on its way (transfers and purchase orders) as already in stock. Turn this off if deliveries
+              are often late.
             </span>
           </span>
         </label>
+      </Section>
 
-        <p className="text-xs text-muted">
-          {customRules > 0 && `${plural(customRules, "item")} with a custom rule keep the values they set. `}
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <p className="text-xs text-muted sm:mr-auto">
           {persisted
-            ? "Rules are saved for your store and used for every sync and stock-change update."
-            : "Demo rules are kept in this browser tab only and reset when the page reloads."}
+            ? "Saved for your store and used for every sync and stock-change update."
+            : "Demo settings last until the page reloads."}
         </p>
-      </div>
-
-      <div className="flex flex-col-reverse gap-2 border-t border-border px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button variant="plain" onClick={onResetRules} className="self-start sm:self-auto">
-          {resetLabel}
+        <Button onClick={discard} disabled={!dirty}>
+          Discard
         </Button>
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={!valid}>
-            Save defaults
-          </Button>
-        </div>
+        <Button type="submit" variant="primary" disabled={!dirty || !valid}>
+          Save
+        </Button>
       </div>
     </form>
   );

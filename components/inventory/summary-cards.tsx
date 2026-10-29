@@ -4,7 +4,8 @@ import { cardClass, focusRingClass } from "@/components/ui/styles";
 
 interface SummaryCardsProps {
   summary: InventorySummary;
-  activeStatus: StatusFilter;
+  /** When set, the cards act as filter toggles; otherwise they're shortcuts to a filtered list. */
+  activeStatus?: StatusFilter;
   onSelectStatus: (status: StatusFilter) => void;
 }
 
@@ -35,8 +36,8 @@ export function SummaryCards({ summary, activeStatus, onSelectStatus }: SummaryC
       status: "needs_reorder",
       label: "Needs reorder",
       value: summary.needsReorder,
-      detail: `${plural(summary.recommendedUnits, "unit")} recommended${
-        summary.recommendedValue ? ` · ≈ ${formatMoney(summary.recommendedValue)} at cost` : ""
+      detail: `${plural(summary.recommendedUnits, "unit")}${
+        summary.recommendedValue ? ` · ≈ ${formatMoney(summary.recommendedValue)}` : " recommended"
       }`,
       dot: "bg-info-fg",
     },
@@ -48,9 +49,9 @@ export function SummaryCards({ summary, activeStatus, onSelectStatus }: SummaryC
         <button
           key={card.status}
           type="button"
-          aria-pressed={activeStatus === card.status}
+          aria-pressed={activeStatus === undefined ? undefined : activeStatus === card.status}
           onClick={() => onSelectStatus(card.status)}
-          className={`${cardClass} ${focusRingClass} p-4 text-left transition-shadow hover:shadow-md aria-pressed:ring-2 aria-pressed:ring-foreground/80`}
+          className={`${cardClass} ${focusRingClass} flex flex-col items-start justify-start p-4 text-left transition-shadow hover:shadow-md aria-pressed:ring-2 aria-pressed:ring-foreground/80`}
         >
           <span className="flex items-center gap-2 text-sm font-medium text-muted">
             <span aria-hidden="true" className={`size-2 rounded-full ${card.dot}`} />

@@ -37,6 +37,13 @@ export function formatMoney({ amount, currencyCode }: Money): string {
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
 
+/** Compact form for tables: "12 days left", with formatRunsOut as the full version. */
+export function formatDaysLeft(daysOfCover: number): string {
+  if (daysOfCover <= 0) return "Out now";
+  const days = Math.floor(daysOfCover);
+  return days === 0 ? "Runs out today" : `${plural(days, "day")} left`;
+}
+
 /** "in 12 days (Nov 10)", "today", or "out now". */
 export function formatRunsOut(daysOfCover: number, now = new Date()): string {
   if (daysOfCover <= 0) return "Out now";
